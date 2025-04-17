@@ -76,27 +76,6 @@ response = chain.invoke("What are the latest advances in CRISPR gene editing for
 print(response)
 ```
 
-## Document Metadata
-
-Each document returned by the retriever includes metadata such as the title, authors, journal, year, PMID, DOI, and URL:
-
-```python
-# Initialize the retriever
-retriever = EuropePMCRetriever(top_k_results=1)
-
-# Search for articles
-docs = retriever.invoke("Alzheimer's disease")
-
-# Print the metadata of the first document
-if docs:
-    doc = docs[0]
-    print("Document Metadata:")
-    for key, value in doc.metadata.items():
-        print(f"{key}: {value}")
-    
-    # Print the URL to access the article
-    print(f"\nAccess the article at: {doc.metadata.get('url', 'URL not available')}")
-
 ## Acknowledgments
 
 This package is based on the work of the [LangChain](https://github.com/langchain-ai/langchain) project.
