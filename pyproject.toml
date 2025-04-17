@@ -51,6 +51,7 @@ optional = true
 optional = true
 
 [tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.5"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.3"
