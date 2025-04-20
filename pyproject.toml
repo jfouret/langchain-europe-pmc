@@ -5,8 +5,8 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "langchain-europe-pmc"
 version = "0.1.0"
-description = "An integration package connecting EuropePMC and LangChain"
-authors = ["Julien Fouret <jfouret@nexomis.io>"]
+description = "A langchain integration package with retrieval capabilities for EuropePMC"
+authors = ["Julien Fouret <jfouret@fouret.me>"]
 readme = "README.md"
 repository = "https://github.com/jfouret/langchain-europe-pmc"
 license = "MIT"
@@ -21,6 +21,9 @@ disallow_untyped_defs = "True"
 [tool.poetry.dependencies]
 python = ">=3.9,<4.0"
 langchain-core = "^0.3.15"
+beautifulsoup4 = "^4.12.3"
+markdownify = "^1.1.0"
+requests = "^2.32.3"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "T201"]
