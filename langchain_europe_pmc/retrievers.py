@@ -1,14 +1,16 @@
 """EuropePMC retrievers."""
 
-import requests
+import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Optional
+
+import requests
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
-from pydantic import BaseModel, Field
 from markdownify import markdownify as md
-import xml.etree.ElementTree as ET
-from .utils import EuropePMCXMLParser
+from pydantic import BaseModel, Field
+
+from langchain_europe_pmc.utils import EuropePMCXMLParser
 
 
 class EuropePMCAPIWrapper(BaseModel):
@@ -45,10 +47,10 @@ class EuropePMCAPIWrapper(BaseModel):
         """
         all_results = []
         current_url = self.base_url
-        
+
         # Ensure page_size is within limits
         page_size = min(min(300, self.max_k), max(1, self.page_size))
-        
+
         # Prepare initial parameters
         params = {
             "query": query,
@@ -56,11 +58,11 @@ class EuropePMCAPIWrapper(BaseModel):
             "resultType": self.result_type,
             "pageSize": page_size,
         }
-        
+
         # Add sort parameter if sort_criteria is specified
         if self.sort_criteria:
             params["sort"] = f"{self.sort_criteria} {self.sort_direction}"
-        
+
         # Fetch results with pagination until we have enough or there are no more
         while current_url and len(all_results) < self.max_k:
             try:
@@ -71,28 +73,31 @@ class EuropePMCAPIWrapper(BaseModel):
                     )
                 else:
                     response = requests.get(current_url, headers=self.headers)
-                
+
                 response.raise_for_status()
                 result_json = response.json()
-                
+
                 # Extract results from this page
-                if "resultList" in result_json and "result" in result_json["resultList"]:
+                if (
+                    "resultList" in result_json
+                    and "result" in result_json["resultList"]
+                ):
                     page_results = result_json["resultList"]["result"]
                     all_results.extend(page_results)
-                
+
                 # Check if there's a next page
                 next_page_url = result_json.get("nextPageUrl")
                 if next_page_url:
                     current_url = next_page_url
                 else:
                     break  # No more pages
-                    
+
             except Exception as e:
                 print(f"Error fetching results from Europe PMC: {str(e)}")
                 break
-        
+
         # Limit to max_k results
-        return all_results[:self.max_k]
+        return all_results[: self.max_k]
 
     def _dict2document(self, article: Dict[str, Any]) -> Document:
         """
@@ -120,8 +125,8 @@ class EuropePMCAPIWrapper(BaseModel):
         if self.markdownlify:
             abstract = md(abstract)
         # Create the page content
-        page_content = f"# {title}\n\n##Abstract\n\n"+abstract
-        
+        page_content = f"# {title}\n\n##Abstract\n\n" + abstract
+
         # Create metadata
         metadata = {
             "title": title,
@@ -138,15 +143,18 @@ class EuropePMCAPIWrapper(BaseModel):
 
         if self.full_text and is_open_access and (pmcid != ""):
             try:
-                markdown_text = EuropePMCXMLParser(pmcid).extract_main_text_as_markdown()
+                markdown_text = EuropePMCXMLParser(
+                    pmcid
+                ).extract_main_text_as_markdown()
                 if self.full_text_max_chars:
-                    page_content += markdown_text[:self.full_text_max_chars]
+                    page_content += markdown_text[: self.full_text_max_chars]
                 else:
                     page_content += markdown_text
             except Exception as e:
                 pass
 
         return Document(page_content=page_content, metadata=metadata)
+
 
 class EuropePMCRetriever(BaseRetriever, EuropePMCAPIWrapper):
     k: Optional[int] = None  # Exact number of documents to return
@@ -270,10 +278,10 @@ class EuropePMCRetriever(BaseRetriever, EuropePMCAPIWrapper):
         """Get documents relevant to the query."""
         # Get the k parameter from kwargs or use the class attribute
         k = kwargs.get("k", self.k)
-        
+
         # Get documents from the API
         docs = [self._dict2document(article) for article in self._load(query)]
-        
+
         # If k is specified, ensure we return exactly k documents
         if k is not None:
             # If we have more documents than k, truncate
@@ -292,9 +300,8 @@ class EuropePMCRetriever(BaseRetriever, EuropePMCAPIWrapper):
                         "doi": "",
                         "source": "",
                         "url": "",
-                    }
+                    },
                 )
                 docs.extend([empty_doc] * (k - len(docs)))
-        
-        return docs
 
+        return docs

@@ -1,9 +1,10 @@
 from typing import Type
 
-from langchain_europe_pmc.retrievers import EuropePMCRetriever
 from langchain_tests.integration_tests import (
     RetrieversIntegrationTests,
 )
+
+from langchain_europe_pmc.retrievers import EuropePMCRetriever
 
 
 class TestEuropePMCRetriever(RetrieversIntegrationTests):
