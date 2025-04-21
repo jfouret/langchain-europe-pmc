@@ -1,14 +1,14 @@
 """EuropePMC XML utilities."""
 
+import sys
 import warnings
-import xml.dom.minidom as minidom
-import xml.etree.ElementTree as ET
 from html import unescape
+from xml.dom import minidom
+from xml.etree import ElementTree as ET
 
 import requests
 from bs4 import XMLParsedAsHTMLWarning
-from markdownify import markdownify as md
-from pydantic import BaseModel, Field
+from html_to_markdown import convert_to_markdown
 
 
 class EuropePMCXMLParser:
@@ -90,14 +90,14 @@ class EuropePMCXMLParser:
             html_str = self._element_to_html_string(table)
 
             # Convert HTML to markdown using markdownify
-            table_md = md(html_str)
+            table_md = convert_to_markdown(html_str)
 
             if table_md:
                 content.append(table_md)
 
         return "\n\n".join(content)
 
-    def _process_section(self, section: ET.Element, level: int = 2):
+    def _process_section(self, section: ET.Element, level: int = 2) -> str:
         """
         Process a section element and its children recursively.
 
@@ -154,7 +154,8 @@ class EuropePMCXMLParser:
 
     def extract_main_text_as_markdown(self) -> str:
         """
-        Extract the main text content from an Europe PMC XML file and format as markdown.
+        Extract the main text content from an Europe PMC XML file and format as
+        markdown.
 
         Args:
             pmcid (str): PubMed Central ID
@@ -172,14 +173,14 @@ class EuropePMCXMLParser:
             response.raise_for_status()  # Raise an exception for HTTP errors
             xml_str = response.text
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching XML: {e}")
+            sys.stderr.write(f"Error fetching XML: {e}\n")
             return ""
 
         # Parse the XML content
         try:
             root = ET.fromstring(xml_str)
         except ET.ParseError as e:
-            print(f"Error parsing XML: {e}")
+            sys.stderr.write(f"Error parsing XML: {e}\n")
             return ""
 
         # Extract keywords
@@ -188,7 +189,7 @@ class EuropePMCXMLParser:
         # Find the body element
         body = root.find(".//body")
         if body is None:
-            print("No body element found in the XML")
+            sys.stderr.write("No body element found in the XML\n")
             return markdown_content
 
         # Process each top-level section

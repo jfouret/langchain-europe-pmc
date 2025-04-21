@@ -1,13 +1,14 @@
 """EuropePMC retrievers."""
 
-import xml.etree.ElementTree as ET
+import re
+import sys
 from typing import Any, Dict, List, Optional
 
 import requests
+from html_to_markdown import convert_to_markdown
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
-from markdownify import markdownify as md
 from pydantic import BaseModel, Field
 
 from langchain_europe_pmc.utils import EuropePMCXMLParser
@@ -33,10 +34,14 @@ class EuropePMCAPIWrapper(BaseModel):
     sort_direction: str = "desc"
     markdownlify: bool = True
     full_text: bool = False
-    full_text_max_chars: int = None
+    full_text_max_chars: Optional[int] = None
     headers: Dict[str, str] = Field(
         default_factory=lambda: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/91.0.4472.124 Safari/537.36"
+            )
         }
     )
 
@@ -45,7 +50,7 @@ class EuropePMCAPIWrapper(BaseModel):
         Search Europe PMC for documents matching the query.
         Return a list of dictionaries containing the document metadata.
         """
-        all_results = []
+        all_results: List[Dict[str, Any]] = []
         current_url = self.base_url
 
         # Ensure page_size is within limits
@@ -56,17 +61,19 @@ class EuropePMCAPIWrapper(BaseModel):
             "query": query,
             "format": "json",
             "resultType": self.result_type,
-            "pageSize": page_size,
+            "pageSize": str(page_size),
         }
 
         # Add sort parameter if sort_criteria is specified
         if self.sort_criteria:
             params["sort"] = f"{self.sort_criteria} {self.sort_direction}"
 
-        # Fetch results with pagination until we have enough or there are no more
+        # Fetch results with pagination until we have enough or there are no
+        #  more
         while current_url and len(all_results) < self.max_k:
             try:
-                # If it's the initial URL, use params; otherwise, the URL already has params
+                # If it's the initial URL, use params; otherwise, the URL
+                # already has params
                 if current_url == self.base_url:
                     response = requests.get(
                         current_url, params=params, headers=self.headers
@@ -93,7 +100,7 @@ class EuropePMCAPIWrapper(BaseModel):
                     break  # No more pages
 
             except Exception as e:
-                print(f"Error fetching results from Europe PMC: {str(e)}")
+                sys.stderr.write(f"Error fetching results from Europe PMC: {str(e)}\n")
                 break
 
         # Limit to max_k results
@@ -123,7 +130,10 @@ class EuropePMCAPIWrapper(BaseModel):
         is_open_access = article.get("isOpenAccess", "N") == "Y"
 
         if self.markdownlify:
-            abstract = md(abstract)
+            abstract = re.sub(
+                r"(?<!^)(?<!\n)(<h\d>)", r"\n\1", abstract, flags=re.MULTILINE
+            )
+            abstract = convert_to_markdown(abstract)
         # Create the page content
         page_content = f"# {title}\n\n##Abstract\n\n" + abstract
 
@@ -137,7 +147,7 @@ class EuropePMCAPIWrapper(BaseModel):
             "pmid": pmid,
             "pmcid": pmcid,
             "doi": doi,
-            "source": f"EuropePMC",
+            "source": "EuropePMC",
             "url": f"https://europepmc.org/article/MED/{pmid}" if pmid else "",
         }
 
@@ -150,7 +160,7 @@ class EuropePMCAPIWrapper(BaseModel):
                     page_content += markdown_text[: self.full_text_max_chars]
                 else:
                     page_content += markdown_text
-            except Exception as e:
+            except Exception:
                 pass
 
         return Document(page_content=page_content, metadata=metadata)
@@ -224,13 +234,23 @@ class EuropePMCRetriever(BaseRetriever, EuropePMCAPIWrapper):
 
         .. code-block:: none
 
-            Title: CRISPR/Cas9-mediated gene editing in human zygotes using Cas9 protein
-            Authors: Tang L, Zeng Y, Du H, Gong M, Peng J, Zhang B, Lei M, Zhao F, Wang W, Li X, Liu J
+            Title: CRISPR/Cas9-mediated gene editing in human zygotes using
+              Cas9 protein
+            Authors: Tang L, Zeng Y, Du H, Gong M, Peng J, Zhang B, Lei M,
+              Zhao F, Wang W, Li X, Liu J
             Journal: Molecular Genetics and Genomics, 2017
             PMID: 28251317
             DOI: 10.1007/s00438-017-1299-z
-            Abstract: Previous works using human tripronuclear zygotes suggested that the...
-            {'title': 'CRISPR/Cas9-mediated gene editing in human zygotes using Cas9 protein', 'authors': 'Tang L, Zeng Y, Du H, Gong M, Peng J, Zhang B, Lei M, Zhao F, Wang W, Li X, Liu J', 'journal': 'Molecular Genetics and Genomics', 'year': '2017', 'pmid': '28251317', 'doi': '10.1007/s00438-017-1299-z', 'source': 'EuropePMC:28251317', 'url': 'https://europepmc.org/article/MED/28251317'}
+            Abstract: Previous works using human tripronuclear zygotes
+              suggested that the...
+            {'title': 'CRISPR/Cas9-mediated gene editing in human zygotes
+                using Cas9 protein',
+             'authors': 'Tang L, Zeng Y, Du H, Gong M, Peng J, Zhang B, Lei M,
+                 Zhao F, Wang W, Li X, Liu J',
+             'journal': 'Molecular Genetics and Genomics', 'year': '2017',
+             'pmid': '28251317',
+             'doi': '10.1007/s00438-017-1299-z', 'source': 'EuropePMC:28251317',
+             'url': 'https://europepmc.org/article/MED/28251317'}
             ---
 
     Use within a chain:
@@ -255,21 +275,30 @@ class EuropePMCRetriever(BaseRetriever, EuropePMCAPIWrapper):
                 return "\\n\\n".join(doc.page_content for doc in docs)
 
             chain = (
-                {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                {"context": retriever | format_docs,
+                  "question": RunnablePassthrough()}
                 | prompt
                 | llm
                 | StrOutputParser()
             )
 
-            chain.invoke("What are the latest advances in CRISPR gene editing for cystic fibrosis?")
+            chain.invoke(
+                "What are the latest advances in CRISPR gene editing for cystic
+                fibrosis?"
+            )
 
         .. code-block:: none
 
-            Based on the context provided, there have been several advances in CRISPR gene editing for cystic fibrosis. 
-            Researchers have successfully used CRISPR/Cas9 technology to edit genes in human zygotes, 
-            demonstrating the potential for genetic modification at the earliest stages of development. 
-            This technology has shown promise for treating genetic disorders like cystic fibrosis by 
-            potentially correcting the CFTR gene mutations responsible for the disease.
+            Based on the context provided, there have been several advances in
+            CRISPR gene editing for cystic fibrosis.
+            Researchers have successfully used CRISPR/Cas9 technology to edit
+            genes in human zygotes,
+            demonstrating the potential for genetic modification at the earliest
+            stages of development.
+            This technology has shown promise for treating genetic disorders
+            like cystic fibrosis by
+            potentially correcting the CFTR gene mutations responsible for the
+            disease.
     """
 
     def _get_relevant_documents(
