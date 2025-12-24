@@ -129,7 +129,7 @@ class EuropePMCAPIWrapper(BaseModel):
         abstract = article.get("abstractText", "")
         is_open_access = article.get("isOpenAccess", "N") == "Y"
 
-        if self.markdownlify:
+        if self.markdownlify and abstract != "":
             abstract = re.sub(
                 r"(?<!^)(?<!\n)(<h\d>)", r"\n\1", abstract, flags=re.MULTILINE
             )
