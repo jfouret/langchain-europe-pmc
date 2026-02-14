@@ -1,0 +1,18 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    "group:all"
+  ],
+  prConcurrentLimit: 15,
+  prHeader: "![Renovate Bot](https://avatars.githubusercontent.com/u/25180681?v=4&s=40) Renovate: Dependency Update",
+  prBodyNotes: [
+    "This PR has been created by Renovate Bot to keep your dependencies up-to-date.",
+    "Managed by centralized Renovate bot from jfouret/renovate repository"
+  ],
+  rebaseWhen: "behind-base-branch",
+  enabledManagers: [
+    "github-actions",
+    "pep621"
+  ]
+}
